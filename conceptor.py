@@ -25,7 +25,8 @@ class Cross_Correlational_Conceptor:
             input_ = 0
 
         # expand
-        A = torch.randn(expand_depth, input.shape[1], self.kernel_size[0], self.kernel_size[1], requires_grad=True, device=self.device)
+        A = torch.empty(expand_depth, input.shape[1], self.kernel_size[0], self.kernel_size[1], device=self.device, requires_grad=True)
+        torch.nn.init.normal_(A, 0, 0.001)
         self.new_weights.append(A)
 
         optimizer = torch.optim.Adam(self.new_weights, lr=0.01)
@@ -34,7 +35,7 @@ class Cross_Correlational_Conceptor:
         with torch.no_grad():
             residue = input - input_
 
-        for i in range(10000):
+        for i in range(1000):
 
             new_hidden = self.__internal__forward(input, self.new_weights)
             residue_ = self.__internal__backward(new_hidden, self.new_weights)
@@ -44,7 +45,7 @@ class Cross_Correlational_Conceptor:
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            if i % 1000 == 0:
+            if i % 100 == 0:
                 print("step:", i, "th, loss:", loss.item())
 
         print("final loss:", loss.item())
