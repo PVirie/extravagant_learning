@@ -11,7 +11,7 @@ class Cross_Correlational_Conceptor:
         self.weights = []
         self.new_weights = []
         self.kernel_size = kernel_size
-        self.padding = ((self.kernel_size[0] - 1) // 2, (self.kernel_size[1] - 1) // 2)
+        self.padding = ((self.kernel_size[0]) // 2, (self.kernel_size[1]) // 2)
         self.stride = stride
 
     def __internal__assign_output_padding(self, input):
@@ -40,7 +40,7 @@ class Cross_Correlational_Conceptor:
 
         # expand
         A = torch.empty(expand_depth, input.shape[1], self.kernel_size[0], self.kernel_size[1], device=self.device, requires_grad=True)
-        torch.nn.init.normal_(A, 0, 0.01)
+        torch.nn.init.normal_(A, 0, 0.001)
         self.new_weights.append(A)
 
         optimizer = torch.optim.Adam(self.new_weights, lr=lr)
@@ -122,7 +122,7 @@ if __name__ == '__main__':
     dtype = torch.float
     device = torch.device("cuda:0")
 
-    layer1 = Cross_Correlational_Conceptor(device, kernel_size=(3, 3), stride=(2, 2))
+    layer1 = Cross_Correlational_Conceptor(device, kernel_size=(3, 3), stride=(1, 1))
     layer2 = Cross_Correlational_Conceptor(device, kernel_size=(3, 3), stride=(2, 2))
     criterion = torch.nn.MSELoss(reduction='mean')
 
@@ -143,7 +143,7 @@ if __name__ == '__main__':
     loss = criterion(x_, x1)
     print(loss.item())
 
-    layer1.learn(x2, 20)
+    layer1.learn(x2, 40)
 
     x2_1 = layer1 << x2
     print(x2_1.shape)
