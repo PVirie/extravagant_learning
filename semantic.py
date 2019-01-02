@@ -1,17 +1,17 @@
 import torch
 import torchvision
+import math
 
 
+# simply 1-nn network
 class Semantic_Memory:
 
     def __init__(self, device):
         print("init")
         self.device = device
         self.weights = []
-        self.new_weights = []
 
-    # be careful before stacking this layer to other expandable convolutional layers.
-    def learn(self, input, output, num_classes, expand_threshold=1e-6, steps=1000, lr=0.01):
+    def learn(self, input, output, num_classes, expand_threshold=1e-2, steps=1000, lr=0.01):
         print("learn")
 
         with torch.no_grad():
@@ -27,52 +27,34 @@ class Semantic_Memory:
             return
 
         # expand
-        A = torch.empty(input.shape[1], num_classes, device=self.device, requires_grad=True)
-        torch.nn.init.normal_(A, 0, 0.001)
-        self.new_weights.append(A)
-
-        optimizer = torch.optim.Adam(self.new_weights, lr=lr)
-
-        for i in range(steps):
-
-            logits_ = self.__internal__forward(input, self.new_weights)
-
-            loss = criterion(logits_ + prev_logits_, output)
-
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            if i % 100 == 0:
-                print("step:", i, "th, loss:", loss.item())
-
-        print("final loss:", loss.item())
+        new_weight = (torch.transpose(input, 0, 1), output)
 
         # merge
-        self.weights.append(A)
-        self.new_weights.clear()
+        self.weights.append(new_weight)
 
     def __internal__forward(self, input, weights, depth_out=0):
 
-        for f in weights:
-            depth_out = max(depth_out, f.shape[1])
+        logits = - torch.cat([
+            torch.sum(input * input, dim=1, keepdim=True) - 2 * torch.matmul(input[:, :A.shape[0]], A) + torch.sum(A * A, dim=0, keepdim=True)
+            for (A, B) in weights
+        ], dim=1)
 
-        canvas = torch.zeros([input.shape[0], depth_out], device=self.device)
-
-        for f in weights:
-            if input.shape[1] < f.shape[0]:
-                continue
-            addition = torch.matmul(input[:, :f.shape[0]], f)
-            occupied_depth = f.shape[1]
-            canvas[:, 0:occupied_depth] = canvas[:, 0:occupied_depth] + addition
-
-        return canvas
+        return logits
 
     # ----------- public functions ---------------
 
     def __lshift__(self, input):
         with torch.no_grad():
             logits_ = self.__internal__forward(input, self.weights)
-            prediction = torch.argmax(logits_, dim=1)
+
+            indices = torch.argmax(logits_, dim=1)
+
+            bases = torch.cat([
+                B for (A, B) in self.weights
+            ], dim=0)
+
+            prediction = bases[indices]
+
         return prediction
 
 
@@ -84,22 +66,28 @@ if __name__ == '__main__':
 
     layer = Semantic_Memory(device)
 
-    x = torch.randn(20, 5, device=device)
-    y = torch.randint(5, (20, ), dtype=torch.int64, device=device)
+    x = torch.randn(10, 5, device=device)
+    y = torch.randint(5, (10, ), dtype=torch.int64, device=device)
 
     layer.learn(x, y, num_classes=5)
 
     y_ = layer << x
-
     print(y)
     print(y_)
+    print("Percent correct: ", torch.sum(y_ == y).item() / x.shape[0])
 
     x2 = torch.randn(20, 10, device=device)
     y2 = torch.randint(10, (20, ), dtype=torch.int64, device=device)
 
     layer.learn(x2, y2, num_classes=10)
 
-    y_ = layer << torch.cat([x, torch.zeros(x.shape, device=device)], dim=1)
+    x3 = torch.randn(20, 10, device=device)
+    y3 = torch.randint(10, (20, ), dtype=torch.int64, device=device)
 
-    print(y)
+    layer.learn(x3, y3, num_classes=10)
+
+    xs = torch.zeros(x.shape[0], x2.shape[1], device=device)
+    xs[:, 0:x.shape[1], ...] = x
+    y_ = layer << xs
     print(y_)
+    print("Percent correct: ", torch.sum(y_ == y).item() / x.shape[0])
