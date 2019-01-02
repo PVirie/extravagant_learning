@@ -25,9 +25,9 @@ class Cross_Correlational_Conceptor:
         w_in = (w_out - 1) * self.stride[1] - 2 * self.padding[1] + self.kernel_size[1]
 
         self.output_padding = (h - h_in, w - w_in)
-        print(self.output_padding)
+        # print(self.output_padding)
 
-    def learn(self, input, expand_depth, steps=1000, lr=0.01):
+    def learn(self, input, expand_depth, expand_threshold=1e-6, steps=1000, lr=0.01):
         print("learn")
 
         self.__internal__assign_output_padding(input)
@@ -38,6 +38,13 @@ class Cross_Correlational_Conceptor:
         else:
             input_ = torch.zeros(1, input.shape[1], 1, 1, device=self.device)
 
+        with torch.no_grad():
+            residue = input - input_
+
+        if torch.mean(torch.abs(residue)) < expand_threshold:
+            print("Small error, skip expansion.")
+            return
+
         # expand
         A = torch.empty(expand_depth, input.shape[1], self.kernel_size[0], self.kernel_size[1], device=self.device, requires_grad=True)
         torch.nn.init.normal_(A, 0, 0.001)
@@ -45,9 +52,6 @@ class Cross_Correlational_Conceptor:
 
         optimizer = torch.optim.Adam(self.new_weights, lr=lr)
         criterion = torch.nn.MSELoss(reduction='mean')
-
-        with torch.no_grad():
-            residue = input - input_
 
         for i in range(steps):
 
@@ -117,7 +121,7 @@ class Cross_Correlational_Conceptor:
 
 
 if __name__ == '__main__':
-    print("test conceptor")
+    print("assert conceptor preserves the containment property")
 
     dtype = torch.float
     device = torch.device("cuda:0")
