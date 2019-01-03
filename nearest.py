@@ -1,7 +1,8 @@
 import torch
+from layer import Layer
 
 
-class Nearest_Neighbor:
+class Nearest_Neighbor(Layer):
 
     def __init__(self, device):
         print("init")
@@ -10,18 +11,6 @@ class Nearest_Neighbor:
 
     def learn(self, input, output, num_classes, expand_threshold=1e-2, steps=1000, lr=0.01):
         print("learn")
-
-        with torch.no_grad():
-            if len(self.weights) is not 0:
-                prev_logits_ = self.__internal__forward(input, self.weights)
-            else:
-                prev_logits_ = torch.zeros(input.shape[0], num_classes, device=self.device)
-
-        criterion = torch.nn.CrossEntropyLoss(reduction='mean')
-        loss = criterion(prev_logits_, output)
-        if loss < expand_threshold:
-            print("Small error, skip expansion.")
-            return
 
         # expand
         new_weight = (torch.transpose(input, 0, 1), output)
@@ -63,8 +52,8 @@ if __name__ == '__main__':
 
     layer = Nearest_Neighbor(device)
 
-    x = torch.randn(10, 5, device=device)
-    y = torch.randint(5, (10, ), dtype=torch.int64, device=device)
+    x = torch.randn(100, 5, device=device)
+    y = torch.randint(5, (100, ), dtype=torch.int64, device=device)
 
     layer.learn(x, y, num_classes=5)
 
@@ -73,13 +62,13 @@ if __name__ == '__main__':
     print(y_)
     print("Percent correct: ", torch.sum(y_ == y).item() / x.shape[0])
 
-    x2 = torch.randn(20, 10, device=device)
-    y2 = torch.randint(10, (20, ), dtype=torch.int64, device=device)
+    x2 = torch.randn(100, 10, device=device)
+    y2 = torch.randint(10, (100, ), dtype=torch.int64, device=device)
 
     layer.learn(x2, y2, num_classes=10)
 
-    x3 = torch.randn(20, 10, device=device)
-    y3 = torch.randint(10, (20, ), dtype=torch.int64, device=device)
+    x3 = torch.randn(100, 10, device=device)
+    y3 = torch.randint(10, (100, ), dtype=torch.int64, device=device)
 
     layer.learn(x3, y3, num_classes=10)
 

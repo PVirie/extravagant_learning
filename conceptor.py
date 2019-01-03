@@ -1,8 +1,9 @@
 import torch
 import math
+from layer import Layer
 
 
-class Cross_Correlational_Conceptor:
+class Cross_Correlational_Conceptor(Layer):
 
     def __init__(self, device, kernel_size=(3, 3), stride=(1, 1)):
         print("init")
@@ -26,7 +27,7 @@ class Cross_Correlational_Conceptor:
         self.output_padding = (h - h_in, w - w_in)
         # print(self.output_padding)
 
-    def learn(self, input, expand_depth, expand_threshold=1e-6, steps=1000, lr=0.01):
+    def learn(self, input, expand_depth, expand_threshold=1e-5, steps=1000, lr=0.01):
         print("learn")
 
         self.__internal__assign_output_padding(input)

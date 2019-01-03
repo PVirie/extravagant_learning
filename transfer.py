@@ -1,4 +1,5 @@
 import torch
+from layer import Layer
 
 
 def interleave(seq, dim=1):
@@ -17,7 +18,7 @@ def invert_interleave(input, dim=1, chunks=2):
     return chunks
 
 
-class Mirroring_Relu_Layer:
+class Mirroring_Relu_Layer(Layer):
 
     def __init__(self, device):
         print("init")

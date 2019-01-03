@@ -1,7 +1,8 @@
 import torch
+from layer import Layer
 
 
-class Semantic_Memory:
+class Semantic_Memory(Layer):
     # unlike nearest neighbor, semantic memory always requires that new difference are given as new dimensions.
     # this is like the original conceptor in a way.
 
