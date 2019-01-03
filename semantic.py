@@ -1,45 +1,71 @@
 import torch
-import torchvision
-import math
 
 
-# simply 1-nn network
 class Semantic_Memory:
+    # unlike nearest neighbor, semantic memory always requires that new difference are given as new dimensions.
+    # this is like the original conceptor in a way.
 
     def __init__(self, device):
         print("init")
         self.device = device
         self.weights = []
+        self.new_weights = []
+        self.current_depth = 0
 
     def learn(self, input, output, num_classes, expand_threshold=1e-2, steps=1000, lr=0.01):
         print("learn")
 
         with torch.no_grad():
             if len(self.weights) is not 0:
-                prev_logits_ = self.__internal__forward(input, self.weights, input.shape[1])
+                prev_logits_ = self.__internal__forward(input, self.weights, num_classes)
             else:
                 prev_logits_ = torch.zeros(input.shape[0], num_classes, device=self.device)
 
         criterion = torch.nn.CrossEntropyLoss(reduction='mean')
-        loss = criterion(prev_logits_, output)
-        if loss < expand_threshold:
-            print("Small error, skip expansion.")
-            return
 
         # expand
-        new_weight = (torch.transpose(input, 0, 1), output)
+        A = torch.empty(input.shape[1] - self.current_depth, num_classes, device=self.device, requires_grad=True)
+        torch.nn.init.normal_(A, 0, 0.001)
+        self.new_weights.append(A)
+
+        expanded_input = input[:, self.current_depth:]
+
+        optimizer = torch.optim.Adam(self.new_weights, lr=lr)
+        for i in range(steps):
+
+            logits_ = self.__internal__forward(expanded_input, self.new_weights)
+
+            loss = criterion(prev_logits_ + logits_, output)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            if i % 100 == 0:
+                print("step:", i, "th, loss:", loss.item())
+
+        print("final loss:", loss.item())
 
         # merge
-        self.weights.append(new_weight)
+        self.weights.append(A)
+        self.new_weights.clear()
+        self.current_depth = input.shape[1]
 
     def __internal__forward(self, input, weights, depth_out=0):
 
-        logits = - torch.cat([
-            torch.sum(input * input, dim=1, keepdim=True) - 2 * torch.matmul(input[:, :A.shape[0]], A) + torch.sum(A * A, dim=0, keepdim=True)
-            for (A, B) in weights
-        ], dim=1)
+        for f in weights:
+            depth_out = max(depth_out, f.shape[1])
 
-        return logits
+        canvas = torch.zeros([input.shape[0], depth_out], device=self.device)
+
+        from_depth = 0
+        for f in weights:
+            to_depth = from_depth + f.shape[0]
+            addition = torch.matmul(input[:, from_depth:to_depth, ...], f)
+            occupied_depth = f.shape[1]
+            canvas[:, 0:occupied_depth, ...] = canvas[:, 0:occupied_depth, ...] + addition
+            from_depth = to_depth
+
+        return canvas
 
     # ----------- public functions ---------------
 
@@ -47,13 +73,7 @@ class Semantic_Memory:
         with torch.no_grad():
             logits_ = self.__internal__forward(input, self.weights)
 
-            indices = torch.argmax(logits_, dim=1)
-
-            bases = torch.cat([
-                B for (A, B) in self.weights
-            ], dim=0)
-
-            prediction = bases[indices]
+            prediction = torch.argmax(logits_, dim=1)
 
         return prediction
 
@@ -76,18 +96,19 @@ if __name__ == '__main__':
     print(y_)
     print("Percent correct: ", torch.sum(y_ == y).item() / x.shape[0])
 
-    x2 = torch.randn(20, 10, device=device)
-    y2 = torch.randint(10, (20, ), dtype=torch.int64, device=device)
+    x2 = torch.randn(10, 10, device=device)
+    y2 = torch.randint(10, (10, ), dtype=torch.int64, device=device)
 
     layer.learn(x2, y2, num_classes=10)
 
-    x3 = torch.randn(20, 10, device=device)
-    y3 = torch.randint(10, (20, ), dtype=torch.int64, device=device)
+    x3 = torch.randn(10, 15, device=device)
+    y3 = torch.randint(15, (10, ), dtype=torch.int64, device=device)
 
-    layer.learn(x3, y3, num_classes=10)
+    layer.learn(x3, y3, num_classes=15)
 
-    xs = torch.zeros(x.shape[0], x2.shape[1], device=device)
+    xs = torch.zeros(x.shape[0], x3.shape[1], device=device)
     xs[:, 0:x.shape[1], ...] = x
     y_ = layer << xs
+
     print(y_)
     print("Percent correct: ", torch.sum(y_ == y).item() / x.shape[0])

@@ -1,5 +1,4 @@
 import torch
-import torchvision
 
 
 def interleave(seq, dim=1):
