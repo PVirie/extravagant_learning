@@ -6,12 +6,21 @@ class Semantic_Memory(Layer):
     # unlike nearest neighbor, semantic memory always requires that new difference are given as new dimensions.
     # this is like the original conceptor in a way.
 
-    def __init__(self, device):
+    def __init__(self, device, file_path=None):
         print("init")
         self.device = device
         self.weights = []
         self.new_weights = []
         self.current_depth = 0
+        self.file_path = file_path
+
+    def save(self):
+        if self.file_path:
+            torch.save(self.weights, self.file_path)
+
+    def load(self):
+        if self.file_path:
+            self.weights = torch.load(self.file_path)
 
     def learn(self, input, output, num_classes, expand_threshold=1e-2, steps=1000, lr=0.01):
         print("learn")

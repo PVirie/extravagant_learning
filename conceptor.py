@@ -1,11 +1,12 @@
 import torch
 import math
 from layer import Layer
+import os
 
 
 class Cross_Correlational_Conceptor(Layer):
 
-    def __init__(self, device, kernel_size=(3, 3), stride=(1, 1)):
+    def __init__(self, device, kernel_size=(3, 3), stride=(1, 1), file_path=None):
         print("init")
         self.device = device
         self.weights = []
@@ -13,6 +14,15 @@ class Cross_Correlational_Conceptor(Layer):
         self.kernel_size = kernel_size
         self.padding = ((self.kernel_size[0]) // 2, (self.kernel_size[1]) // 2)
         self.stride = stride
+        self.file_path = file_path
+
+    def save(self):
+        if self.file_path:
+            torch.save(self.weights, self.file_path)
+
+    def load(self):
+        if self.file_path:
+            self.weights = torch.load(self.file_path)
 
     def __internal__assign_output_padding(self, input):
         h = input.shape[2]
@@ -33,7 +43,7 @@ class Cross_Correlational_Conceptor(Layer):
         self.__internal__assign_output_padding(input)
 
         prev_loss = 0
-        while True:
+        for i in range(100):
 
             if len(self.weights) is not 0:
                 hidden = self.__internal__forward(input, self.weights)
@@ -44,17 +54,18 @@ class Cross_Correlational_Conceptor(Layer):
             with torch.no_grad():
                 residue = input - input_
 
-            loss = torch.mean(torch.abs(residue))
+            loss = torch.max(torch.abs(residue))
             if loss.item() < expand_threshold:
-                print("Small reconstruction loss, skip expansion.", loss.item())
+                print("Skip expansion after", i, "steps, small reconstruction loss.", loss.item())
+                break
             if abs(loss.item() - prev_loss) < expand_threshold:
-                print("Small delta error, skip expansion.", loss.item(), prev_loss)
-                return
+                print("Skip expansion after", i, "steps, small delta error.", loss.item(), prev_loss)
+                break
             prev_loss = loss.item()
 
             # expand
             A = torch.empty(expand_depth, input.shape[1], self.kernel_size[0], self.kernel_size[1], device=self.device, requires_grad=True)
-            torch.nn.init.normal_(A, 0, 0.001)
+            torch.nn.init.xavier_uniform_(A)
             self.new_weights.append(A)
 
             optimizer = torch.optim.Adam(self.new_weights, lr=lr)
@@ -69,6 +80,7 @@ class Cross_Correlational_Conceptor(Layer):
 
                 optimizer.zero_grad()
                 loss.backward()
+                # print(A.grad.shape)
                 optimizer.step()
                 if i % 100 == 0:
                     if verbose:
@@ -135,8 +147,10 @@ if __name__ == '__main__':
     dtype = torch.float
     device = torch.device("cuda:0")
 
-    layer1 = Cross_Correlational_Conceptor(device, kernel_size=(3, 3), stride=(1, 1))
-    layer2 = Cross_Correlational_Conceptor(device, kernel_size=(3, 3), stride=(2, 2))
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+
+    layer1 = Cross_Correlational_Conceptor(device, kernel_size=(3, 3), stride=(1, 1), file_path=os.path.join(dir_path, "weights", "conceptor_layer1.wt"))
+    layer2 = Cross_Correlational_Conceptor(device, kernel_size=(4, 4), stride=(2, 2))
     criterion = torch.nn.MSELoss(reduction='mean')
 
     x1 = torch.randn(1, 5, 28, 28, device=device)

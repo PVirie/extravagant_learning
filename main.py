@@ -14,8 +14,9 @@ root = os.path.dirname(os.path.abspath(__file__))
 dtype = torch.float
 device = torch.device("cuda:0")
 
+batch_size = 1
 data_set = torchvision.datasets.FashionMNIST(os.path.join(root, "data"), train=True, download=True, transform=torchvision.transforms.Compose([torchvision.transforms.ToTensor()]))
-data_loader = torch.utils.data.DataLoader(data_set, batch_size=1, shuffle=True)
+data_loader = torch.utils.data.DataLoader(data_set, batch_size=batch_size, shuffle=True)
 
 
 if __name__ == "__main__":
@@ -23,10 +24,15 @@ if __name__ == "__main__":
 
     cluster_layers = []
 
-    for i in range(2):
+    layers = []
+    layers.append(Cross_Correlational_Conceptor(device, kernel_size=(3, 3), stride=(1, 1)))
+    layers.append(Mirroring_Relu_Layer(device))
+    layers.append(Cross_Correlational_Conceptor(device, kernel_size=(1, 1), stride=(1, 1)))
+    cluster_layers.append(layers)
+
+    for i in range(1):
         layers = []
-        layers.append(Cross_Correlational_Conceptor(device, kernel_size=(3, 3), stride=(1, 1)))
-        layers.append(Cross_Correlational_Conceptor(device, kernel_size=(5, 5), stride=(2, 2)))
+        layers.append(Cross_Correlational_Conceptor(device, kernel_size=(4, 4), stride=(2, 2)))
         layers.append(Mirroring_Relu_Layer(device))
         layers.append(Cross_Correlational_Conceptor(device, kernel_size=(1, 1), stride=(1, 1)))
         cluster_layers.append(layers)
@@ -41,34 +47,45 @@ if __name__ == "__main__":
         prediction = final_layer << input
         return prediction
 
+    # memory_test_list = []
+
     count = 0
     for i, (data, label) in enumerate(data_loader):
         print("data: ", i)
+        # memory_test_list.append((data, label))
         input = data.to(device)
         output = label.to(device)
 
-        # test
+        # online test
         if i > 0:
             prediction = forward(input)
-            if prediction.item() == label.item():
-                count = count + 1
-            print("True: ", label.item(), "Guess: ", prediction.item(), "Percent correct: ", count * 100 / i)
+            count = count + np.sum(prediction.cpu().numpy() == label.numpy())
+            print("True: ", label, "Guess: ", prediction, "Percent correct: ", count * 100 / (i * batch_size))
 
         # then, learn
         for cluster in cluster_layers:
-            cluster[0].learn(input, 16)
+            cluster[0].learn(input, 1, lr=0.001, steps=2000, expand_threshold=1e-2)
             input = cluster[0] << input
-
-            cluster[1].learn(input, 16, lr=0.001, steps=2000, verbose=True)
             input = cluster[1] << input
 
+            cluster[2].learn(input, 2, lr=0.001, steps=2000, expand_threshold=1e-2)
             input = cluster[2] << input
-
-            cluster[3].learn(input, 8)
-            input = cluster[3] << input
 
         input = torch.reshape(input, [input.shape[0], -1])
         final_layer.learn(input, output, 10)
 
-        if i == 1000:
+        if i == 100:
             break
+
+    # count = 0
+    # for i, (data, label) in enumerate(memory_test_list):
+    #     input = data.to(device)
+    #     output = label.to(device)
+
+    #     # test
+    #     prediction = forward(input)
+    #     count = count + np.sum(prediction.cpu().numpy() == label.numpy())
+    #     print("True: ", label, "Guess: ", prediction, "Percent correct: ", count * 100 / ((i + 1) * batch_size))
+
+    #     if i == 100:
+    #         break

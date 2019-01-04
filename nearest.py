@@ -4,10 +4,19 @@ from layer import Layer
 
 class Nearest_Neighbor(Layer):
 
-    def __init__(self, device):
+    def __init__(self, device, file_path=None):
         print("init")
         self.device = device
         self.weights = []
+        self.file_path = file_path
+
+    def save(self):
+        if self.file_path:
+            torch.save(self.weights, self.file_path)
+
+    def load(self):
+        if self.file_path:
+            self.weights = torch.load(self.file_path)
 
     def learn(self, input, output, num_classes, expand_threshold=1e-2, steps=1000, lr=0.01):
         print("learn")
@@ -52,7 +61,7 @@ if __name__ == '__main__':
 
     layer = Nearest_Neighbor(device)
 
-    x = torch.randn(100, 5, device=device)
+    x = torch.randn(100, 392, device=device)
     y = torch.randint(5, (100, ), dtype=torch.int64, device=device)
 
     layer.learn(x, y, num_classes=5)
@@ -62,12 +71,12 @@ if __name__ == '__main__':
     print(y_)
     print("Percent correct: ", torch.sum(y_ == y).item() / x.shape[0])
 
-    x2 = torch.randn(100, 10, device=device)
+    x2 = torch.randn(100, 784, device=device)
     y2 = torch.randint(10, (100, ), dtype=torch.int64, device=device)
 
     layer.learn(x2, y2, num_classes=10)
 
-    x3 = torch.randn(100, 10, device=device)
+    x3 = torch.randn(100, 784, device=device)
     y3 = torch.randint(10, (100, ), dtype=torch.int64, device=device)
 
     layer.learn(x3, y3, num_classes=10)
