@@ -27,50 +27,59 @@ class Cross_Correlational_Conceptor(Layer):
         self.output_padding = (h - h_in, w - w_in)
         # print(self.output_padding)
 
-    def learn(self, input, expand_depth, expand_threshold=1e-5, steps=1000, lr=0.01):
+    def learn(self, input, expand_depth, expand_threshold=1e-4, steps=1000, lr=0.01, verbose=False):
         print("learn")
 
         self.__internal__assign_output_padding(input)
 
-        if len(self.weights) is not 0:
-            hidden = self.__internal__forward(input, self.weights)
-            input_ = self.__internal__backward(hidden, self.weights, input.shape[1])
-        else:
-            input_ = torch.zeros(1, input.shape[1], 1, 1, device=self.device)
+        prev_loss = 0
+        while True:
 
-        with torch.no_grad():
-            residue = input - input_
+            if len(self.weights) is not 0:
+                hidden = self.__internal__forward(input, self.weights)
+                input_ = self.__internal__backward(hidden, self.weights, input.shape[1])
+            else:
+                input_ = torch.zeros(1, input.shape[1], 1, 1, device=self.device)
 
-        if torch.mean(torch.abs(residue)) < expand_threshold:
-            print("Small error, skip expansion.")
-            return
+            with torch.no_grad():
+                residue = input - input_
 
-        # expand
-        A = torch.empty(expand_depth, input.shape[1], self.kernel_size[0], self.kernel_size[1], device=self.device, requires_grad=True)
-        torch.nn.init.normal_(A, 0, 0.001)
-        self.new_weights.append(A)
+            loss = torch.mean(torch.abs(residue))
+            if loss.item() < expand_threshold:
+                print("Small reconstruction loss, skip expansion.", loss.item())
+            if abs(loss.item() - prev_loss) < expand_threshold:
+                print("Small delta error, skip expansion.", loss.item(), prev_loss)
+                return
+            prev_loss = loss.item()
 
-        optimizer = torch.optim.Adam(self.new_weights, lr=lr)
-        criterion = torch.nn.MSELoss(reduction='mean')
+            # expand
+            A = torch.empty(expand_depth, input.shape[1], self.kernel_size[0], self.kernel_size[1], device=self.device, requires_grad=True)
+            torch.nn.init.normal_(A, 0, 0.001)
+            self.new_weights.append(A)
 
-        for i in range(steps):
+            optimizer = torch.optim.Adam(self.new_weights, lr=lr)
+            criterion = torch.nn.MSELoss(reduction='mean')
 
-            new_hidden = self.__internal__forward(input, self.new_weights)
-            residue_ = self.__internal__backward(new_hidden, self.new_weights)
+            for i in range(steps):
 
-            loss = criterion(residue_, residue)
+                new_hidden = self.__internal__forward(input, self.new_weights)
+                residue_ = self.__internal__backward(new_hidden, self.new_weights)
 
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            if i % 100 == 0:
-                print("step:", i, "th, loss:", loss.item())
+                loss = criterion(residue_, residue)
 
-        print("final loss:", loss.item())
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                if i % 100 == 0:
+                    if verbose:
+                        print("step:", i, "th, loss:", loss.item())
 
-        # merge
-        self.weights.append(A)
-        self.new_weights.clear()
+            if verbose:
+                print("final loss:", loss.item())
+
+            # merge
+            self.weights.append(A)
+            self.new_weights.clear()
 
     def __internal__forward(self, input, weights):
         res = torch.cat([
