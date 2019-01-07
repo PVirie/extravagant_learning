@@ -24,17 +24,11 @@ if __name__ == "__main__":
 
     cluster_layers = []
 
-    layers = []
-    layers.append(Cross_Correlational_Conceptor(device, kernel_size=(3, 3), stride=(1, 1)))
-    layers.append(Mirroring_Relu_Layer(device))
-    layers.append(Cross_Correlational_Conceptor(device, kernel_size=(1, 1), stride=(1, 1)))
-    cluster_layers.append(layers)
-
-    for i in range(1):
+    for i in range(2):
         layers = []
-        layers.append(Cross_Correlational_Conceptor(device, kernel_size=(4, 4), stride=(2, 2)))
+        layers.append(Cross_Correlational_Conceptor(device, kernel_size=(3, 3)))
         layers.append(Mirroring_Relu_Layer(device))
-        layers.append(Cross_Correlational_Conceptor(device, kernel_size=(1, 1), stride=(1, 1)))
+        layers.append(Cross_Correlational_Conceptor(device, kernel_size=(1, 1)))
         cluster_layers.append(layers)
 
     final_layer = Nearest_Neighbor(device)
@@ -47,12 +41,12 @@ if __name__ == "__main__":
         prediction = final_layer << input
         return prediction
 
-    # memory_test_list = []
+    memory_test_list = []
 
     count = 0
     for i, (data, label) in enumerate(data_loader):
         print("data: ", i)
-        # memory_test_list.append((data, label))
+        memory_test_list.append((data, label))
         input = data.to(device)
         output = label.to(device)
 
@@ -64,11 +58,11 @@ if __name__ == "__main__":
 
         # then, learn
         for cluster in cluster_layers:
-            cluster[0].learn(input, 1, lr=0.001, steps=2000, expand_threshold=1e-2)
+            cluster[0].learn(input, 9)
             input = cluster[0] << input
             input = cluster[1] << input
 
-            cluster[2].learn(input, 2, lr=0.001, steps=2000, expand_threshold=1e-2)
+            cluster[2].learn(input, 1)
             input = cluster[2] << input
 
         input = torch.reshape(input, [input.shape[0], -1])
@@ -77,15 +71,15 @@ if __name__ == "__main__":
         if i == 100:
             break
 
-    # count = 0
-    # for i, (data, label) in enumerate(memory_test_list):
-    #     input = data.to(device)
-    #     output = label.to(device)
+    count = 0
+    for i, (data, label) in enumerate(memory_test_list):
+        input = data.to(device)
+        output = label.to(device)
 
-    #     # test
-    #     prediction = forward(input)
-    #     count = count + np.sum(prediction.cpu().numpy() == label.numpy())
-    #     print("True: ", label, "Guess: ", prediction, "Percent correct: ", count * 100 / ((i + 1) * batch_size))
+        # test
+        prediction = forward(input)
+        count = count + np.sum(prediction.cpu().numpy() == label.numpy())
+        print("True: ", label, "Guess: ", prediction, "Percent correct: ", count * 100 / ((i + 1) * batch_size))
 
-    #     if i == 100:
-    #         break
+        if i == 100:
+            break

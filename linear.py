@@ -24,6 +24,8 @@ class Conceptor(Layer):
     def learn(self, input, expand_depth=1, expand_threshold=1e-4, expand_steps=1000, steps=1000, lr=0.01, verbose=False):
         print("learn")
 
+        criterion = torch.nn.MSELoss(reduction='mean')
+
         prev_loss = 0
         for k in range(expand_steps):
 
@@ -35,8 +37,6 @@ class Conceptor(Layer):
                     input_ = torch.zeros(1, input.shape[1], device=self.device)
 
                 residue = input - input_
-
-            criterion = torch.nn.MSELoss(reduction='mean')
 
             loss = criterion(input_, input)
             if loss.item() < expand_threshold:
@@ -90,7 +90,6 @@ class Conceptor(Layer):
         canvas = torch.zeros([hidden.shape[0], depth_out], device=self.device)
         return canvas
 
-    # https://github.com/vdumoulin/conv_arithmetic
     def __internal__backward(self, hidden, weights, depth_out=0):
 
         canvas = self.__internal__get_canvas(hidden, weights, depth_out)
