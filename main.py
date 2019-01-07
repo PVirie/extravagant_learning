@@ -24,7 +24,7 @@ if __name__ == "__main__":
 
     cluster_layers = []
 
-    for i in range(2):
+    for i in range(5):
         layers = []
         layers.append(Cross_Correlational_Conceptor(device, kernel_size=(3, 3)))
         layers.append(Mirroring_Relu_Layer(device))
@@ -58,7 +58,7 @@ if __name__ == "__main__":
 
         # then, learn
         for cluster in cluster_layers:
-            cluster[0].learn(input, 9)
+            cluster[0].learn(input, 3)
             input = cluster[0] << input
             input = cluster[1] << input
 
@@ -68,7 +68,7 @@ if __name__ == "__main__":
         input = torch.reshape(input, [input.shape[0], -1])
         final_layer.learn(input, output, 10)
 
-        if i == 100:
+        if i == 1000:
             break
 
     count = 0
@@ -79,7 +79,7 @@ if __name__ == "__main__":
         # test
         prediction = forward(input)
         count = count + np.sum(prediction.cpu().numpy() == label.numpy())
-        print("True: ", label, "Guess: ", prediction, "Percent correct: ", count * 100 / ((i + 1) * batch_size))
 
-        if i == 100:
+        if i == 1000:
+            print("True: ", label, "Guess: ", prediction, "Percent correct: ", count * 100 / ((i + 1) * batch_size))
             break

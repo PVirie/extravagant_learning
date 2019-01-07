@@ -10,7 +10,6 @@ class Conceptor(Layer):
         print("init")
         self.device = device
         self.weights = []
-        self.new_weights = []
         self.file_path = file_path
 
     def save(self):
@@ -40,23 +39,23 @@ class Conceptor(Layer):
 
             loss = criterion(input_, input)
             if loss.item() < expand_threshold:
-                print("Skip expansion after", k * expand_depth, "steps, small reconstruction loss.", loss.item())
+                print("Stop expansion after", k * expand_depth, "steps, small reconstruction loss.", loss.item())
                 break
             if abs(loss.item() - prev_loss) < expand_threshold:
-                print("Skip expansion after", k * expand_depth, "steps, small delta error.", loss.item(), prev_loss)
+                print("Stop expansion after", k * expand_depth, "steps, small delta error.", loss.item(), prev_loss)
                 break
             prev_loss = loss.item()
 
             # expand
             A = torch.empty(input.shape[1], expand_depth, device=self.device, requires_grad=True)
             torch.nn.init.xavier_uniform_(A)
-            self.new_weights.append(A)
+            new_weights = [A]
 
-            optimizer = torch.optim.Adam(self.new_weights, lr=lr)
+            optimizer = torch.optim.Adam(new_weights, lr=lr)
             for i in range(steps):
 
-                new_hidden = self.__internal__forward(input, self.new_weights)
-                residue_ = self.__internal__backward(new_hidden, self.new_weights)
+                new_hidden = self.__internal__forward(input, new_weights)
+                residue_ = self.__internal__backward(new_hidden, new_weights)
 
                 loss = criterion(residue_, residue)
 
@@ -73,7 +72,6 @@ class Conceptor(Layer):
 
             # merge
             self.weights.append(A)
-            self.new_weights.clear()
 
     def __internal__forward(self, input, weights):
         res = torch.cat([
@@ -129,9 +127,9 @@ if __name__ == '__main__':
     layer2 = Conceptor(device)
     criterion = torch.nn.MSELoss(reduction='mean')
 
-    # if the model is correctly implemented, the number of steps should not exceed min(x1.shape[0], x1.shape[1])
-    x1 = torch.randn(20, 50, device=device)
-    x2 = torch.randn(20, 50, device=device)
+    # if the model is correctly implemented, the total number of steps should not exceed min(x1.shape[0], x1.shape[1])
+    x1 = torch.randn(20, 30, device=device)
+    x2 = torch.randn(20, 30, device=device)
 
     layer1.learn(x1, 1)
 

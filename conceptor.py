@@ -11,7 +11,6 @@ class Cross_Correlational_Conceptor(Layer):
         print("init")
         self.device = device
         self.weights = []
-        self.new_weights = []
         self.kernel_size = kernel_size
         self.stride = kernel_size
         self.file_path = file_path
@@ -28,21 +27,27 @@ class Cross_Correlational_Conceptor(Layer):
         h = input.shape[2]
         w = input.shape[3]
 
+        self.offsets = (0, 0)
         self.output_padding = (self.kernel_size[0] - (h % self.kernel_size[0]), self.kernel_size[1] - (w % self.kernel_size[1]))
         padded = torch.nn.functional.pad(input, (0, self.output_padding[1], 0, self.output_padding[0]))
         if sample:
             y, x = (random.randint(0, self.kernel_size[0] - 1), random.randint(0, self.kernel_size[1] - 1))
-            res = torch.nn.functional.pad(padded, (self.kernel_size[1] - x - 1, x + 1, self.kernel_size[0] - y - 1, y + 1))
+            res = torch.nn.functional.pad(padded, (x, self.kernel_size[1] - x, y, self.kernel_size[0] - y))
+            self.offsets = (y, x)
             return res
         else:
             res = torch.cat([
-                torch.nn.functional.pad(padded, (self.kernel_size[1] - x - 1, x + 1, self.kernel_size[0] - y - 1, y + 1))
+                torch.nn.functional.pad(padded, (x, self.kernel_size[1] - x, y, self.kernel_size[0] - y))
                 for (y, x) in itertools.product(range(self.kernel_size[0]), range(self.kernel_size[1]))
             ], dim=0)
             return res
 
     def __internal__revert_output_padding(self, output):
-        return output[:, :, :output.shape[2] - self.output_padding[0] - self.kernel_size[0], :output.shape[3] - self.output_padding[1] - self.kernel_size[1]]
+        return output[
+            :, :,
+            self.offsets[0]:(self.offsets[0] + (output.shape[2] - self.kernel_size[0]) - self.output_padding[0]),
+            self.offsets[1]:(self.offsets[1] + (output.shape[3] - self.kernel_size[1]) - self.output_padding[1])
+        ]
 
     def learn(self, input, expand_depth=1, expand_threshold=1e-4, expand_steps=1000, steps=1000, lr=0.01, verbose=False):
         print("learn")
@@ -65,23 +70,23 @@ class Cross_Correlational_Conceptor(Layer):
 
             loss = criterion(input_, input)
             if loss.item() < expand_threshold:
-                print("Skip expansion after", k * expand_depth, "steps, small reconstruction loss.", loss.item())
+                print("Stop expansion after", k * expand_depth, "steps, small reconstruction loss.", loss.item())
                 break
             if abs(loss.item() - prev_loss) < expand_threshold:
-                print("Skip expansion after", k * expand_depth, "steps, small delta error.", loss.item(), prev_loss)
+                print("Stop expansion after", k * expand_depth, "steps, small delta error.", loss.item(), prev_loss)
                 break
             prev_loss = loss.item()
 
             # expand
             A = torch.empty(expand_depth, input.shape[1], self.kernel_size[0], self.kernel_size[1], device=self.device, requires_grad=True)
             torch.nn.init.orthogonal_(A)
-            self.new_weights.append(A)
+            new_weights = [A]
 
-            optimizer = torch.optim.Adam(self.new_weights, lr=lr)
+            optimizer = torch.optim.Adam(new_weights, lr=lr)
             for i in range(steps):
 
-                new_hidden = self.__internal__forward(input, self.new_weights)
-                residue_ = self.__internal__backward(new_hidden, self.new_weights)
+                new_hidden = self.__internal__forward(input, new_weights)
+                residue_ = self.__internal__backward(new_hidden, new_weights)
 
                 loss = criterion(residue_, residue)
 
@@ -98,7 +103,6 @@ class Cross_Correlational_Conceptor(Layer):
 
             # merge
             self.weights.append(A)
-            self.new_weights.clear()
 
     def __internal__forward(self, input, weights):
         res = torch.cat([
@@ -139,7 +143,7 @@ class Cross_Correlational_Conceptor(Layer):
 
     def __lshift__(self, input):
         with torch.no_grad():
-            input = self.__internal__assign_output_padding(input)
+            input = self.__internal__assign_output_padding(input, True)
             res = self.__internal__forward(input, self.weights)
         return res
 
@@ -187,7 +191,7 @@ if __name__ == '__main__':
 
     layer2.learn(x2_1, 3)
 
-    hidden = (layer2 << (layer1 << x1))
+    hidden = layer2 << (layer1 << x1)
     print(hidden.shape)
     x_ = layer1 >> (layer2 >> hidden)
 
