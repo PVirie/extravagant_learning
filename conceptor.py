@@ -37,29 +37,29 @@ class Cross_Correlational_Conceptor(Layer):
         self.output_padding = (h - h_in, w - w_in)
         # print(self.output_padding)
 
-    def learn(self, input, expand_depth, expand_threshold=1e-4, steps=1000, lr=0.01, verbose=False):
+    def learn(self, input, expand_depth=1, expand_threshold=1e-4, expand_steps=1000, steps=1000, lr=0.01, verbose=False):
         print("learn")
 
         self.__internal__assign_output_padding(input)
 
         prev_loss = 0
-        for k in range(100):
-
-            if len(self.weights) is not 0:
-                hidden = self.__internal__forward(input, self.weights)
-                input_ = self.__internal__backward(hidden, self.weights, input.shape[1])
-            else:
-                input_ = torch.zeros(1, input.shape[1], 1, 1, device=self.device)
+        for k in range(expand_steps):
 
             with torch.no_grad():
+                if len(self.weights) is not 0:
+                    hidden = self.__internal__forward(input, self.weights)
+                    input_ = self.__internal__backward(hidden, self.weights, input.shape[1])
+                else:
+                    input_ = torch.zeros(1, input.shape[1], 1, 1, device=self.device)
+
                 residue = input - input_
 
-            loss = torch.max(torch.abs(residue))
+            loss = criterion(input_, input)
             if loss.item() < expand_threshold:
-                print("Skip expansion after", k, "steps, small reconstruction loss.", loss.item())
+                print("Skip expansion after", k * expand_depth, "steps, small reconstruction loss.", loss.item())
                 break
             if abs(loss.item() - prev_loss) < expand_threshold:
-                print("Skip expansion after", k, "steps, small delta error.", loss.item(), prev_loss)
+                print("Skip expansion after", k * expand_depth, "steps, small delta error.", loss.item(), prev_loss)
                 break
             prev_loss = loss.item()
 
@@ -69,8 +69,6 @@ class Cross_Correlational_Conceptor(Layer):
             self.new_weights.append(A)
 
             optimizer = torch.optim.Adam(self.new_weights, lr=lr)
-            criterion = torch.nn.MSELoss(reduction='mean')
-
             for i in range(steps):
 
                 new_hidden = self.__internal__forward(input, self.new_weights)
@@ -156,12 +154,12 @@ if __name__ == '__main__':
     x1 = torch.randn(1, 5, 28, 28, device=device)
     x2 = torch.randn(1, 5, 28, 28, device=device)
 
-    layer1.learn(x1, 40)
+    layer1.learn(x1, 1)
 
     x1_1 = layer1 << x1
     print(x1_1.shape)
 
-    layer2.learn(x1_1, 40)
+    layer2.learn(x1_1, 1)
 
     x1_2 = layer2 << x1_1
     print(x1_2.shape)
@@ -170,12 +168,12 @@ if __name__ == '__main__':
     loss = criterion(x_, x1)
     print(loss.item())
 
-    layer1.learn(x2, 40)
+    layer1.learn(x2, 1)
 
     x2_1 = layer1 << x2
     print(x2_1.shape)
 
-    layer2.learn(x2_1, 40)
+    layer2.learn(x2_1, 1)
 
     hidden = (layer2 << (layer1 << x1))
     print(hidden.shape)

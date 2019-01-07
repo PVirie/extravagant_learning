@@ -21,27 +21,29 @@ class Conceptor(Layer):
         if self.file_path:
             self.weights = torch.load(self.file_path)
 
-    def learn(self, input, expand_depth, expand_threshold=1e-4, steps=1000, lr=0.01, verbose=False):
+    def learn(self, input, expand_depth=1, expand_threshold=1e-4, expand_steps=1000, steps=1000, lr=0.01, verbose=False):
         print("learn")
 
         prev_loss = 0
-        for k in range(100):
-
-            if len(self.weights) is not 0:
-                hidden = self.__internal__forward(input, self.weights)
-                input_ = self.__internal__backward(hidden, self.weights, input.shape[1])
-            else:
-                input_ = torch.zeros(1, input.shape[1], device=self.device)
+        for k in range(expand_steps):
 
             with torch.no_grad():
+                if len(self.weights) is not 0:
+                    hidden = self.__internal__forward(input, self.weights)
+                    input_ = self.__internal__backward(hidden, self.weights, input.shape[1])
+                else:
+                    input_ = torch.zeros(1, input.shape[1], device=self.device)
+
                 residue = input - input_
 
-            loss = torch.max(torch.abs(residue))
+            criterion = torch.nn.MSELoss(reduction='mean')
+
+            loss = criterion(input_, input)
             if loss.item() < expand_threshold:
-                print("Skip expansion after", k, "steps, small reconstruction loss.", loss.item())
+                print("Skip expansion after", k * expand_depth, "steps, small reconstruction loss.", loss.item())
                 break
             if abs(loss.item() - prev_loss) < expand_threshold:
-                print("Skip expansion after", k, "steps, small delta error.", loss.item(), prev_loss)
+                print("Skip expansion after", k * expand_depth, "steps, small delta error.", loss.item(), prev_loss)
                 break
             prev_loss = loss.item()
 
@@ -51,8 +53,6 @@ class Conceptor(Layer):
             self.new_weights.append(A)
 
             optimizer = torch.optim.Adam(self.new_weights, lr=lr)
-            criterion = torch.nn.MSELoss(reduction='mean')
-
             for i in range(steps):
 
                 new_hidden = self.__internal__forward(input, self.new_weights)
@@ -130,18 +130,17 @@ if __name__ == '__main__':
     layer2 = Conceptor(device)
     criterion = torch.nn.MSELoss(reduction='mean')
 
-    x1 = torch.randn(30, 50, device=device)
-    x2 = torch.randn(30, 50, device=device)
+    # if the model is correctly implemented, the number of steps should not exceed min(x1.shape[0], x1.shape[1])
+    x1 = torch.randn(20, 50, device=device)
+    x2 = torch.randn(20, 50, device=device)
 
     layer1.learn(x1, 1)
 
     x1_1 = layer1 << x1
-    print(x1_1.shape)
 
     layer2.learn(x1_1, 1)
 
     x1_2 = layer2 << x1_1
-    print(x1_2.shape)
     x_ = layer1 >> (layer2 >> x1_2)
 
     loss = criterion(x_, x1)
@@ -150,12 +149,10 @@ if __name__ == '__main__':
     layer1.learn(x2, 1)
 
     x2_1 = layer1 << x2
-    print(x2_1.shape)
 
     layer2.learn(x2_1, 1)
 
     hidden = (layer2 << (layer1 << x1))
-    print(hidden.shape)
     x_ = layer1 >> (layer2 >> hidden)
 
     loss = criterion(x_, x1)
