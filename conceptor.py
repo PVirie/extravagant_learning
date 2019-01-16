@@ -41,7 +41,7 @@ class Cross_Correlational_Conceptor(Layer):
 
     def __internal__pool(self, input):
         shape = [-1, self.kernel_size[0] * self.kernel_size[1], input.shape[1], input.shape[2], input.shape[3]]
-        return torch.reshape(input, shape)[:, 4, ...]
+        return torch.mean(torch.reshape(input, shape), dim=1)
 
     def __internal__revert_output_padding(self, output):
         return output[
@@ -72,11 +72,12 @@ class Cross_Correlational_Conceptor(Layer):
 
             loss = criterion(input_, input)
             if loss.item() < expand_threshold:
-                print("Stop expansion after", k * expand_depth, "steps, small reconstruction loss.", loss.item())
-                break
-            if abs(loss.item() - prev_loss) < expand_threshold:
-                print("Stop expansion after", k * expand_depth, "steps, small delta error.", loss.item(), prev_loss)
-                break
+                print("Stop expansion after", k * expand_depth, "bases, small reconstruction loss.", loss.item())
+                return True
+            if abs(loss.item() - prev_loss) < 1e-6:
+                print("Stop expansion after", k * expand_depth, "bases, small delta error.", loss.item(), prev_loss)
+                # del self.weights[len(self.weights) - k:]
+                return False
             prev_loss = loss.item()
 
             # expand
@@ -105,6 +106,8 @@ class Cross_Correlational_Conceptor(Layer):
 
             # merge
             self.weights.append(A)
+
+        return False
 
     def __internal__forward(self, input, weights):
         res = torch.cat([

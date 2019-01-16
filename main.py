@@ -24,7 +24,7 @@ if __name__ == "__main__":
 
     cluster_layers = []
 
-    for i in range(5):
+    for i in range(2):
         layers = []
         layers.append(Cross_Correlational_Conceptor(device, kernel_size=(3, 3)))
         layers.append(Mirroring_Relu_Layer(device))
