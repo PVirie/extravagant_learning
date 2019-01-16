@@ -23,24 +23,25 @@ class Cross_Correlational_Conceptor(Layer):
         if self.file_path:
             self.weights = torch.load(self.file_path)
 
-    def __internal__assign_output_padding(self, input, sample=True):
+    def __internal__assign_output_padding(self, input):
         h = input.shape[2]
         w = input.shape[3]
 
-        self.offsets = (0, 0)
+        self.offsets = (self.kernel_size[0] // 2, self.kernel_size[1] // 2)
         self.output_padding = (self.kernel_size[0] - (h % self.kernel_size[0]), self.kernel_size[1] - (w % self.kernel_size[1]))
         padded = torch.nn.functional.pad(input, (0, self.output_padding[1], 0, self.output_padding[0]))
-        if sample:
-            y, x = (random.randint(0, self.kernel_size[0] - 1), random.randint(0, self.kernel_size[1] - 1))
-            res = torch.nn.functional.pad(padded, (x, self.kernel_size[1] - x, y, self.kernel_size[0] - y))
-            self.offsets = (y, x)
-            return res
-        else:
-            res = torch.cat([
-                torch.nn.functional.pad(padded, (x, self.kernel_size[1] - x, y, self.kernel_size[0] - y))
-                for (y, x) in itertools.product(range(self.kernel_size[0]), range(self.kernel_size[1]))
-            ], dim=0)
-            return res
+        return padded
+
+    def __internal__perspective(self, input):
+        res = torch.cat([
+            torch.nn.functional.pad(input, (x, self.kernel_size[1] - x, y, self.kernel_size[0] - y))
+            for (y, x) in itertools.product(range(self.kernel_size[0]), range(self.kernel_size[1]))
+        ], dim=0)
+        return res
+
+    def __internal__pool(self, input):
+        shape = [-1, self.kernel_size[0] * self.kernel_size[1], input.shape[1], input.shape[2], input.shape[3]]
+        return torch.reshape(input, shape)[:, 4, ...]
 
     def __internal__revert_output_padding(self, output):
         return output[
@@ -54,7 +55,8 @@ class Cross_Correlational_Conceptor(Layer):
 
         criterion = torch.nn.MSELoss(reduction='mean')
 
-        input = self.__internal__assign_output_padding(input, sample=False)
+        input = self.__internal__perspective(input)
+        input = self.__internal__assign_output_padding(input)
 
         prev_loss = 0
         for k in range(expand_steps):
@@ -143,9 +145,11 @@ class Cross_Correlational_Conceptor(Layer):
 
     def __lshift__(self, input):
         with torch.no_grad():
-            input = self.__internal__assign_output_padding(input, True)
-            res = self.__internal__forward(input, self.weights)
-        return res
+            padded = self.__internal__perspective(input)
+            nper = self.__internal__assign_output_padding(padded)
+            hidden = self.__internal__forward(nper, self.weights)
+            pooled = self.__internal__pool(hidden)
+        return pooled
 
     def __rshift__(self, hidden):
         with torch.no_grad():
