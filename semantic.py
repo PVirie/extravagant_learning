@@ -22,7 +22,7 @@ class Semantic_Memory(Layer):
         if self.file_path:
             self.weights = torch.load(self.file_path)
 
-    def learn(self, input, output, num_classes, expand_threshold=1e-2, steps=1000, lr=0.01):
+    def learn(self, input, output, num_classes, expand_threshold=1e-2, steps=2000, lr=0.01, verbose=False):
         print("learn")
 
         with torch.no_grad():
@@ -51,9 +51,11 @@ class Semantic_Memory(Layer):
             loss.backward()
             optimizer.step()
             if i % 100 == 0:
-                print("step:", i, "th, loss:", loss.item())
+                if verbose:
+                    print("step:", i, "th, loss:", loss.item())
 
-        print("final loss:", loss.item())
+        if verbose:
+            print("final loss:", loss.item())
 
         # merge
         self.weights.append(A)

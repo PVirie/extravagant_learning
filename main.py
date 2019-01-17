@@ -24,14 +24,14 @@ if __name__ == "__main__":
 
     cluster_layers = []
 
-    for i in range(2):
+    for i in range(3):
         layers = []
         layers.append(Cross_Correlational_Conceptor(device, kernel_size=(3, 3)))
         layers.append(Mirroring_Relu_Layer(device))
         layers.append(Cross_Correlational_Conceptor(device, kernel_size=(1, 1)))
         cluster_layers.append(layers)
 
-    final_layer = Nearest_Neighbor(device)
+    final_layer = Semantic_Memory(device)
 
     def forward(input):
         for cluster in cluster_layers:
@@ -46,6 +46,11 @@ if __name__ == "__main__":
     count = 0
     for i, (data, label) in enumerate(data_loader):
         print("data: ", i)
+
+        img = np.squeeze(data.numpy())
+        cv2.imshow("sample", img)
+        cv2.waitKey(10)
+
         memory_test_list.append((data, label))
         input = data.to(device)
         output = label.to(device)
@@ -58,7 +63,7 @@ if __name__ == "__main__":
 
         # then, learn
         for cluster in cluster_layers:
-            cluster[0].learn(input, 3)
+            cluster[0].learn(input, 1)
             input = cluster[0] << input
             input = cluster[1] << input
 

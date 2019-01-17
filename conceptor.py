@@ -41,7 +41,7 @@ class Cross_Correlational_Conceptor(Layer):
 
     def __internal__pool(self, input):
         shape = [-1, self.kernel_size[0] * self.kernel_size[1], input.shape[1], input.shape[2], input.shape[3]]
-        return torch.mean(torch.reshape(input, shape), dim=1)
+        return torch.reshape(input, shape)[0]
 
     def __internal__revert_output_padding(self, output):
         return output[
