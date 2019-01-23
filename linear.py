@@ -1,6 +1,6 @@
 import torch
 import math
-from layer import Layer
+from layer import *
 import os
 
 
@@ -37,14 +37,13 @@ class Conceptor(Layer):
 
                 residue = input - input_
 
-            loss = criterion(input_, input)
-            if loss.item() < expand_threshold:
-                print("Stop expansion after", k * expand_depth, "steps, small reconstruction loss.", loss.item())
+            rloss = criterion(input_, input)
+            if rloss.item() < expand_threshold:
+                print("Stop expansion after", k * expand_depth, "steps, small reconstruction loss.", rloss.item())
                 break
-            if abs(loss.item() - prev_loss) < expand_threshold:
-                print("Stop expansion after", k * expand_depth, "steps, small delta error.", loss.item(), prev_loss)
+            if abs(rloss.item() - prev_loss) < expand_threshold:
+                print("Stop expansion after", k * expand_depth, "steps, small delta error.", rloss.item(), prev_loss)
                 break
-            prev_loss = loss.item()
 
             # expand
             A = torch.empty(input.shape[1], expand_depth, device=self.device, requires_grad=True)
@@ -70,8 +69,14 @@ class Conceptor(Layer):
             if verbose:
                 print("final loss:", loss.item())
 
+            norm = sum_norm(A).item()
+            if (norm / expand_depth - 1)**2 > expand_threshold:
+                print("Failed solution, continue...", norm)
+                continue
+
             # merge
             self.weights.append(A)
+            prev_loss = rloss.item()
 
     def __internal__forward(self, input, weights):
         res = torch.cat([

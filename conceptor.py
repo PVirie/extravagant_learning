@@ -1,7 +1,6 @@
 import torch
-from layer import Layer
+from layer import *
 import os
-import random
 import itertools
 
 
@@ -70,19 +69,18 @@ class Cross_Correlational_Conceptor(Layer):
 
                 residue = input - input_
 
-            loss = criterion(input_, input)
-            if loss.item() < expand_threshold:
-                print("Stop expansion after", k * expand_depth, "bases, small reconstruction loss.", loss.item())
+            rloss = criterion(input_, input)
+            if rloss.item() < expand_threshold:
+                print("Stop expansion after", k * expand_depth, "bases, small reconstruction loss.", rloss.item())
                 return True
-            if abs(loss.item() - prev_loss) < 1e-6:
-                print("Stop expansion after", k * expand_depth, "bases, small delta error.", loss.item(), prev_loss)
+            if abs(rloss.item() - prev_loss) < 1e-6:
+                print("Stop expansion after", k * expand_depth, "bases, small delta error.", rloss.item(), prev_loss)
                 # del self.weights[len(self.weights) - k:]
                 return False
-            prev_loss = loss.item()
 
             # expand
             A = torch.empty(expand_depth, input.shape[1], self.kernel_size[0], self.kernel_size[1], device=self.device, requires_grad=True)
-            torch.nn.init.orthogonal_(A)
+            torch.nn.init.xavier_normal_(A)
             new_weights = [A]
 
             optimizer = torch.optim.Adam(new_weights, lr=lr)
@@ -104,8 +102,14 @@ class Cross_Correlational_Conceptor(Layer):
             if verbose:
                 print("final loss:", loss.item())
 
+            norm = sum_norm(A).item()
+            if (norm / expand_depth - 1)**2 > expand_threshold:
+                print("Failed solution, continue...", norm)
+                continue
+
             # merge
             self.weights.append(A)
+            prev_loss = rloss.item()
 
         return False
 

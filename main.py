@@ -18,6 +18,9 @@ batch_size = 1
 data_set = torchvision.datasets.FashionMNIST(os.path.join(root, "data"), train=True, download=True, transform=torchvision.transforms.Compose([torchvision.transforms.ToTensor()]))
 data_loader = torch.utils.data.DataLoader(data_set, batch_size=batch_size, shuffle=True)
 
+label_descriptions = [
+    'Top', 'Trouser', 'Pullover', 'Dress', 'Coat', 'Sandal', 'Shirt', 'Sneaker', 'Bag', 'Boot'
+]
 
 if __name__ == "__main__":
     print("main")
@@ -48,8 +51,8 @@ if __name__ == "__main__":
         print("data: ", i)
 
         img = np.squeeze(data.numpy())
-        cv2.imshow("sample", img)
-        cv2.waitKey(10)
+        # cv2.imshow("sample", img)
+        # cv2.waitKey(10)
 
         memory_test_list.append((data, label))
         input = data.to(device)
