@@ -3,10 +3,6 @@ from layer import *
 import os
 
 
-def sum_norm(A):
-    return torch.sum(torch.norm(A, dim=0))
-
-
 class Conceptor(Layer):
 
     def __init__(self, device, file_path=None):
@@ -49,32 +45,15 @@ class Conceptor(Layer):
                 break
 
             # expand
-            A = torch.empty(input.shape[1], expand_depth, device=self.device, requires_grad=True)
-            torch.nn.init.xavier_uniform_(A)
-            new_weights = [A]
 
-            optimizer = torch.optim.Adam(new_weights, lr=lr)
-            for i in range(steps):
+            with torch.no_grad():
+                AA = torch.matmul(torch.transpose(residue, 0, 1), residue)
+                U, S, V = torch.svd(AA)
+                A = V[:, 0:expand_depth]
 
-                new_hidden = self.__internal__forward(input, new_weights)
-                residue_ = self.__internal__backward(new_hidden, new_weights)
-
-                loss = criterion(residue_, residue)
-
-                optimizer.zero_grad()
-                loss.backward()
-                # print(A.grad.shape)
-                optimizer.step()
-                if i % 100 == 0:
-                    if verbose:
-                        print("step:", i, "th, loss:", loss.item())
-
-            if verbose:
-                print("final loss:", loss.item())
-
-            norm = sum_norm(A).item()
-            if (norm / expand_depth - 1)**2 > expand_threshold:
-                print("Failed solution, continue...", norm)
+            check = S[expand_depth - 1].item()
+            if check * check < expand_threshold:
+                print("Failed solution, continue...", check)
                 continue
 
             # merge
