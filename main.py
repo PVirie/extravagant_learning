@@ -45,8 +45,6 @@ if __name__ == "__main__":
         prediction = final_layer << input
         return prediction
 
-    memory_test_list = []
-
     percent_correct = 0.0
     for i, (data, label) in enumerate(dataset):
         print("data: ", i)
@@ -54,8 +52,6 @@ if __name__ == "__main__":
         # img = np.squeeze(data.numpy())
         # cv2.imshow("sample", img)
         # cv2.waitKey(10)
-
-        memory_test_list.append((data, label))
         input = data.to(device)
         output = label.to(device)
 
@@ -79,7 +75,7 @@ if __name__ == "__main__":
         final_layer.learn(input, output, 10)
 
     count = 0
-    for i, (data, label) in enumerate(memory_test_list):
+    for i, (data, label) in enumerate(dataset):
         input = data.to(device)
         output = label.to(device)
 

@@ -1,7 +1,10 @@
 import torch
-import math
 from layer import *
 import os
+
+
+def sum_norm(A):
+    return torch.sum(torch.norm(A, dim=0))
 
 
 class Conceptor(Layer):

@@ -1,10 +1,6 @@
 import torch
 
 
-def sum_norm(A):
-    return torch.sum(torch.norm(torch.reshape(A, [A.shape[0], -1]), dim=1))
-
-
 class Layer:
     def __init__(self):
         print("do nothing")

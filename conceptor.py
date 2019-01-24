@@ -4,6 +4,10 @@ import os
 import itertools
 
 
+def sum_norm(A):
+    return torch.sum(torch.norm(torch.reshape(A, [A.shape[0], -1]), dim=1))
+
+
 class Cross_Correlational_Conceptor(Layer):
 
     def __init__(self, device, kernel_size=(3, 3), file_path=None):
