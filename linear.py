@@ -45,11 +45,13 @@ class Conceptor(Layer):
                 break
 
             # expand
+            A = torch.empty(input.shape[1], expand_depth, device=self.device, requires_grad=False)
 
             with torch.no_grad():
                 AA = torch.matmul(torch.transpose(residue, 0, 1), residue)
                 U, S, V = torch.svd(AA)
-                A = V[:, 0:expand_depth]
+                A_ = V[:, 0:expand_depth]
+                A.copy_(A_)
 
             check = S[expand_depth - 1].item()
             if check * check < expand_threshold:

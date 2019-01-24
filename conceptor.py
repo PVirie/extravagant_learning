@@ -2,6 +2,7 @@ import torch
 from layer import *
 import os
 import itertools
+import gc
 
 
 class Cross_Correlational_Conceptor(Layer):
@@ -79,6 +80,7 @@ class Cross_Correlational_Conceptor(Layer):
                 return False
 
             # expand
+            A = torch.empty(expand_depth, input.shape[1], self.kernel_size[0], self.kernel_size[1], device=self.device, requires_grad=False)
 
             with torch.no_grad():
                 R = torch.nn.functional.unfold(residue, kernel_size=self.kernel_size, stride=self.stride)
@@ -89,7 +91,8 @@ class Cross_Correlational_Conceptor(Layer):
                 U, S, V = torch.svd(AA)
                 flat_ = torch.transpose(V[:, 0:expand_depth], 0, 1)
 
-                A = torch.reshape(flat_, [expand_depth, input.shape[1], self.kernel_size[0], self.kernel_size[1]])
+                A_ = torch.reshape(flat_, [expand_depth, input.shape[1], self.kernel_size[0], self.kernel_size[1]])
+                A.copy_(A_)
 
             check = S[expand_depth - 1].item()
             if check * check < expand_threshold:
@@ -99,6 +102,8 @@ class Cross_Correlational_Conceptor(Layer):
             # merge
             self.weights.append(A)
             prev_loss = rloss.item()
+
+        gc.collect()
 
         return False
 

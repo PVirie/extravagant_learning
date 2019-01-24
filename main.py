@@ -16,23 +16,16 @@ if __name__ == "__main__":
     device = torch.device("cuda:0")
 
     batch_size = 1
-    dataset = FashionMNIST(device, batch_size=batch_size, max_per_class=100, seed=100, group_size=10)
+    dataset = FashionMNIST(device, batch_size=batch_size, max_per_class=100, seed=100, group_size=1)
 
     cluster_layers = []
 
-    for i in range(2):
+    for i in range(3):
         layers = []
         layers.append(Cross_Correlational_Conceptor(device, kernel_size=(3, 3)))
         layers.append(Mirroring_Relu_Layer(device))
         layers.append(Cross_Correlational_Conceptor(device, kernel_size=(1, 1)))
         cluster_layers.append(layers)
-
-    # for i in range(1):
-    #     layers = []
-    #     layers.append(Cross_Correlational_Conceptor(device, kernel_size=(2, 2)))
-    #     layers.append(Mirroring_Relu_Layer(device))
-    #     layers.append(Cross_Correlational_Conceptor(device, kernel_size=(1, 1)))
-    #     cluster_layers.append(layers)
 
     # final_layer = Semantic_Memory(device)
     final_layer = Nearest_Neighbor(device)
