@@ -26,7 +26,7 @@ class Cross_Correlational_Conceptor(Layer):
         h = input.shape[2]
         w = input.shape[3]
 
-        self.offsets = (self.kernel_size[0] // 2, self.kernel_size[1] // 2)
+        self.offsets = (0, 0)
         self.output_padding = (self.kernel_size[0] - (h % self.kernel_size[0]), self.kernel_size[1] - (w % self.kernel_size[1]))
         padded = torch.nn.functional.pad(input, (0, self.output_padding[1], 0, self.output_padding[0]))
         return padded
@@ -40,7 +40,7 @@ class Cross_Correlational_Conceptor(Layer):
 
     def __internal__pool(self, input):
         shape = [-1, self.kernel_size[0] * self.kernel_size[1], input.shape[1], input.shape[2], input.shape[3]]
-        return torch.reshape(input, shape)[0]
+        return torch.reshape(input, shape)[:, 0, ...]
 
     def __internal__revert_output_padding(self, output):
         return output[
