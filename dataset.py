@@ -48,17 +48,21 @@ class FashionMNIST:
             out.append(self.label_descriptions[np_label[i]])
         return out
 
+    def __len__(self):
+        return self.total // self.batch_size
+
     def __iter__(self):
         self.index_iterator = 0
         return self
 
     def __next__(self):
-        if self.index_iterator >= self.total:
-            raise StopIteration()
 
         data = []
         labels = []
         for i in range(self.batch_size):
+            if self.index_iterator >= self.total:
+                raise StopIteration()
+
             datum, label = self.dataset[self.pointer[self.index_iterator]]
             self.index_iterator = self.index_iterator + 1
             data.append(datum)
