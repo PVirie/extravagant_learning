@@ -40,8 +40,8 @@ class Cross_Correlational_Conceptor(Layer):
         return res
 
     def __internal__pool(self, input):
-        shape = [-1, self.kernel_size[0] * self.kernel_size[1], input.shape[1], input.shape[2], input.shape[3]]
-        return torch.reshape(input, shape)[:, 0, ...]
+        shape = [self.kernel_size[0] * self.kernel_size[1], -1, input.shape[1], input.shape[2], input.shape[3]]
+        return torch.reshape(input, shape)[0, ...]
 
     def __internal__revert_output_padding(self, output):
         return output[
@@ -172,8 +172,8 @@ if __name__ == '__main__':
     layer2 = Cross_Correlational_Conceptor(device, kernel_size=(3, 3))
     criterion = torch.nn.MSELoss(reduction='mean')
 
-    x1 = torch.randn(1, 5, 28, 28, device=device)
-    x2 = torch.randn(1, 5, 28, 28, device=device)
+    x1 = torch.randn(2, 5, 28, 28, device=device)
+    x2 = torch.randn(2, 5, 28, 28, device=device)
 
     layer1.learn(x1, 3)
 

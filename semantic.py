@@ -101,26 +101,26 @@ if __name__ == '__main__':
     x = torch.randn(10, 5, device=device)
     y = torch.randint(5, (10, ), dtype=torch.int64, device=device)
 
-    layer.learn(x, y, num_classes=5)
+    layer.learn(x, y, num_classes=5, verbose=True)
 
     y_ = layer << x
     print(y)
     print(y_)
-    print("Percent correct: ", torch.sum(y_ == y).item() / x.shape[0])
+    print("Percent correct: ", torch.sum(y_ == y).item() * 100 / x.shape[0])
 
     x2 = torch.randn(10, 10, device=device)
     y2 = torch.randint(10, (10, ), dtype=torch.int64, device=device)
 
-    layer.learn(x2, y2, num_classes=10)
+    layer.learn(x2, y2, num_classes=10, verbose=True)
 
     x3 = torch.randn(10, 15, device=device)
     y3 = torch.randint(15, (10, ), dtype=torch.int64, device=device)
 
-    layer.learn(x3, y3, num_classes=15)
+    layer.learn(x3, y3, num_classes=15, verbose=True)
 
     xs = torch.zeros(x.shape[0], x3.shape[1], device=device)
     xs[:, 0:x.shape[1], ...] = x
     y_ = layer << xs
 
     print(y_)
-    print("Percent correct: ", torch.sum(y_ == y).item() / x.shape[0])
+    print("Percent correct: ", torch.sum(y_ == y).item() * 100 / x.shape[0])

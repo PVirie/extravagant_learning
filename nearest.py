@@ -69,7 +69,7 @@ if __name__ == '__main__':
     y_ = layer << x
     print(y)
     print(y_)
-    print("Percent correct: ", torch.sum(y_ == y).item() / x.shape[0])
+    print("Percent correct: ", torch.sum(y_ == y).item() * 100 / x.shape[0])
 
     x2 = torch.randn(100, 784, device=device)
     y2 = torch.randint(10, (100, ), dtype=torch.int64, device=device)
@@ -85,4 +85,4 @@ if __name__ == '__main__':
     xs[:, 0:x.shape[1], ...] = x
     y_ = layer << xs
     print(y_)
-    print("Percent correct: ", torch.sum(y_ == y).item() / x.shape[0])
+    print("Percent correct: ", torch.sum(y_ == y).item() * 100 / x.shape[0])
