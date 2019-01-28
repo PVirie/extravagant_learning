@@ -41,26 +41,27 @@ class Block_LML:
 
 class Block_CMC:
     def __init__(self):
-        self.c0 = Cross_Correlational_Conceptor(device, kernel_size=(2, 2))
+        self.c0 = Cross_Correlational_Conceptor(device, kernel_size=(3, 3))
         self.t0 = Mirroring_Relu_Layer(device)
-        # self.c1 = Cross_Correlational_Conceptor(device, kernel_size=(1, 1))
+        self.c1 = Cross_Correlational_Conceptor(device, kernel_size=(1, 1))
 
     def __le__(self, input):
         self.c0.learn(input, 1)
         input = self.c0 << input
-        output = self.t0 << input
+        input = self.t0 << input
 
-        # self.c1.learn(input, 1)
-        # output = self.c1 << input
+        self.c1.learn(input, 1)
+        output = self.c1 << input
         return output
 
     def __lshift__(self, input):
         input = self.c0 << input
-        output = self.t0 << input
-        # output = self.c1 << input
+        input = self.t0 << input
+        output = self.c1 << input
         return output
 
     def __rshift__(self, hidden):
+        hidden = self.c1 >> hidden
         hidden = self.t0 >> hidden
         output = self.c0 >> hidden
         return output
@@ -77,7 +78,7 @@ if __name__ == "__main__":
 
     cluster_layers = []
 
-    for i in range(4):
+    for i in range(3):
         cluster_layers.append(Block_CMC())
 
     # final_layer = Semantic_Memory(device)
@@ -103,6 +104,7 @@ if __name__ == "__main__":
         output = label.to(device)
 
         # online test
+        current_bits = 0
         if i > 0:
             prediction, hidden = forward(input)
             prediction = prediction.cpu()
@@ -111,19 +113,21 @@ if __name__ == "__main__":
             print("Truth: ", dataset.readout(label))
             print("Guess: ", dataset.readout(prediction))
             print("Percent correct: ", percent_correct)
-
-            recon = backward(hidden)
-            residue = torch.abs(input - recon).cpu().numpy()
-            img = np.reshape(np.concatenate([data.numpy(), residue], axis=3), [-1, residue.shape[3] * 2])
-            cv2.imshow("sample", img)
-            cv2.waitKey(10)
+            current_bits = hidden.shape[1]
 
         # then, learn
         for cluster in cluster_layers:
             input = cluster <= input
-        input = torch.reshape(input, [input.shape[0], -1])
-        final_layer.learn(input, output, 10)
-        prediction = final_layer << input
+        logits = torch.reshape(input, [input.shape[0], -1])
+        final_layer.learn(logits, output, 10)
+        prediction = final_layer << logits
+
+        residue = input.clone().detach()
+        residue[:, :current_bits, ...] = 0
+        residue = torch.abs(backward(residue)).cpu().numpy()
+        img = np.reshape(np.concatenate([data.numpy(), residue], axis=3), [-1, residue.shape[3] * 2])
+        cv2.imshow("sample", img)
+        cv2.waitKey(10)
 
     count = 0
     for i, (data, label) in enumerate(dataset):

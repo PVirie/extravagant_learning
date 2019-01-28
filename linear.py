@@ -10,6 +10,7 @@ class Conceptor(Layer):
         self.device = device
         self.weights = []
         self.file_path = file_path
+        self.max_input_channel = 0
 
     def save(self):
         if self.file_path:
@@ -22,8 +23,11 @@ class Conceptor(Layer):
     def learn(self, input, expand_depth=1, expand_threshold=1e-4, expand_steps=1000, steps=1000, lr=0.01, verbose=False):
         print("learn")
 
+        self.max_input_channel = max(self.max_input_channel, input.shape[1])
+
         criterion = torch.nn.MSELoss(reduction='mean')
 
+        prev_size = len(self.weights)
         prev_loss = 0
         for k in range(expand_steps):
 
@@ -38,10 +42,10 @@ class Conceptor(Layer):
 
             rloss = criterion(input_, input)
             if rloss.item() < expand_threshold:
-                print("Stop expansion after", k * expand_depth, "steps, small reconstruction loss.", rloss.item())
+                print("Stop expansion after", (len(self.weights) - prev_size) * expand_depth, "steps, small reconstruction loss.", rloss.item())
                 break
             if abs(rloss.item() - prev_loss) < expand_threshold:
-                print("Stop expansion after", k * expand_depth, "steps, small delta error.", rloss.item(), prev_loss)
+                print("Stop expansion after", (len(self.weights) - prev_size) * expand_depth, "steps, small delta error.", rloss.item(), prev_loss)
                 break
 
             # expand
@@ -71,6 +75,7 @@ class Conceptor(Layer):
 
     def __internal__get_canvas(self, hidden, weights, depth_out=0):
 
+        depth_out = max(depth_out, self.max_input_channel)
         for f in weights:
             depth_out = max(depth_out, f.shape[0])
 

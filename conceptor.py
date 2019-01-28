@@ -14,6 +14,7 @@ class Cross_Correlational_Conceptor(Layer):
         self.kernel_size = kernel_size
         self.stride = kernel_size
         self.file_path = file_path
+        self.max_input_channel = 0
 
     def save(self):
         if self.file_path:
@@ -27,12 +28,12 @@ class Cross_Correlational_Conceptor(Layer):
         h = input.shape[2]
         w = input.shape[3]
 
-        self.offsets = (0, 0)
         self.output_padding = (self.kernel_size[0] - (h % self.kernel_size[0]), self.kernel_size[1] - (w % self.kernel_size[1]))
         padded = torch.nn.functional.pad(input, (0, self.output_padding[1], 0, self.output_padding[0]))
         return padded
 
     def __internal__perspective(self, input):
+        self.offsets = (0, 0)
         res = torch.cat([
             torch.nn.functional.pad(input, (x, self.kernel_size[1] - x, y, self.kernel_size[0] - y))
             for (y, x) in itertools.product(range(self.kernel_size[0]), range(self.kernel_size[1]))
@@ -46,18 +47,21 @@ class Cross_Correlational_Conceptor(Layer):
     def __internal__revert_output_padding(self, output):
         return output[
             :, :,
-            self.offsets[0]:(self.offsets[0] + (output.shape[2] - self.kernel_size[0]) - self.output_padding[0]),
-            self.offsets[1]:(self.offsets[1] + (output.shape[3] - self.kernel_size[1]) - self.output_padding[1])
+            self.offsets[0]:(self.offsets[0] - self.kernel_size[0] - self.output_padding[0]),
+            self.offsets[1]:(self.offsets[1] - self.kernel_size[1] - self.output_padding[1])
         ]
 
     def learn(self, input, expand_depth=1, expand_threshold=1e-4, expand_steps=1000, steps=1000, lr=0.01, verbose=False):
         print("learn")
+
+        self.max_input_channel = max(self.max_input_channel, input.shape[1])
 
         criterion = torch.nn.MSELoss(reduction='mean')
 
         input = self.__internal__perspective(input)
         input = self.__internal__assign_output_padding(input)
 
+        prev_size = len(self.weights)
         prev_loss = 0
         for k in range(expand_steps):
 
@@ -72,10 +76,10 @@ class Cross_Correlational_Conceptor(Layer):
 
             rloss = criterion(input_, input)
             if rloss.item() < expand_threshold:
-                print("Stop expansion after", k * expand_depth, "bases, small reconstruction loss.", rloss.item())
+                print("Stop expansion after", (len(self.weights) - prev_size) * expand_depth, "bases, small reconstruction loss.", rloss.item())
                 return True
             if abs(rloss.item() - prev_loss) < 1e-6:
-                print("Stop expansion after", k * expand_depth, "bases, small delta error.", rloss.item(), prev_loss)
+                print("Stop expansion after", (len(self.weights) - prev_size) * expand_depth, "bases, small delta error.", rloss.item(), prev_loss)
                 # del self.weights[len(self.weights) - k:]
                 return False
 
@@ -119,6 +123,7 @@ class Cross_Correlational_Conceptor(Layer):
         h_out = hidden.shape[2] * self.kernel_size[0]
         w_out = hidden.shape[3] * self.kernel_size[1]
 
+        depth_out = max(depth_out, self.max_input_channel)
         for f in weights:
             depth_out = max(depth_out, f.shape[1])
 
