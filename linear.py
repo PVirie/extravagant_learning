@@ -9,16 +9,19 @@ class Conceptor(Layer):
         print("init")
         self.device = device
         self.weights = []
+        self.importances = []
         self.file_path = file_path
         self.max_input_channel = 0
 
     def save(self):
         if self.file_path:
-            torch.save(self.weights, self.file_path)
+            torch.save({"weights": self.weights, "importances": self.importances}, self.file_path)
 
     def load(self):
         if self.file_path:
-            self.weights = torch.load(self.file_path)
+            temp = torch.load(self.file_path)
+            self.weights = temp["weights"]
+            self.importances = temp["importances"]
 
     def learn(self, input, expand_depth=1, expand_threshold=1e-4, expand_steps=1000, steps=1000, lr=0.01, verbose=False):
         print("learn")
@@ -27,11 +30,12 @@ class Conceptor(Layer):
 
         criterion = torch.nn.MSELoss(reduction='mean')
 
-        prev_size = len(self.weights)
-        prev_loss = 0
-        for k in range(expand_steps):
+        with torch.no_grad():
 
-            with torch.no_grad():
+            prev_size = len(self.weights)
+            prev_loss = 0
+            for k in range(expand_steps):
+
                 if len(self.weights) is not 0:
                     hidden = self.__internal__forward(input, self.weights)
                     input_ = self.__internal__backward(hidden, self.weights, input.shape[1])
@@ -40,31 +44,43 @@ class Conceptor(Layer):
 
                 residue = input - input_
 
-            rloss = criterion(input_, input)
-            if rloss.item() < expand_threshold:
-                print("Stop expansion after", (len(self.weights) - prev_size) * expand_depth, "steps, small reconstruction loss.", rloss.item())
-                break
-            if abs(rloss.item() - prev_loss) < expand_threshold:
-                print("Stop expansion after", (len(self.weights) - prev_size) * expand_depth, "steps, small delta error.", rloss.item(), prev_loss)
-                break
+                rloss = criterion(input_, input)
+                if rloss.item() < expand_threshold:
+                    print("Stop expansion after", (len(self.weights) - prev_size) * expand_depth, "steps, small reconstruction loss.", rloss.item())
+                    break
+                if abs(rloss.item() - prev_loss) < expand_threshold:
+                    print("Stop expansion after", (len(self.weights) - prev_size) * expand_depth, "steps, small delta error.", rloss.item(), prev_loss)
+                    break
 
-            # expand
-            A = torch.empty(input.shape[1], expand_depth, device=self.device, requires_grad=False)
+                # expand
+                A = torch.empty(input.shape[1], expand_depth, device=self.device, requires_grad=False)
+                M = torch.empty(expand_depth, device=self.device, requires_grad=False)
 
-            with torch.no_grad():
                 AA = torch.matmul(torch.transpose(residue, 0, 1), residue)
                 U, S, V = torch.svd(AA)
                 A_ = V[:, 0:expand_depth]
                 A.copy_(A_)
 
-            check = S[expand_depth - 1].item()
-            if check * check < expand_threshold:
-                print("Failed solution, continue...", check)
-                continue
+                check = S[expand_depth - 1].item()
+                if abs(check) < expand_threshold:
+                    print("Failed solution, continue...", check)
+                    continue
 
-            # merge
-            self.weights.append(A)
-            prev_loss = rloss.item()
+                S_ = torch.sqrt(S[:expand_depth])
+                M.copy_(S_)
+
+                # merge
+                self.weights.append(A)
+                self.importances.append(M)
+                prev_loss = rloss.item()
+
+    def __internal__scale(self, input, importances):
+        res = torch.div(input, torch.reshape(torch.cat(importances, dim=0), [1, -1]))
+        return res
+
+    def __internal__descale(self, input, importances):
+        res = torch.mul(input, torch.reshape(torch.cat(importances, dim=0), [1, -1]))
+        return res
 
     def __internal__forward(self, input, weights):
         res = torch.cat([
@@ -101,10 +117,12 @@ class Conceptor(Layer):
     def __lshift__(self, input):
         with torch.no_grad():
             res = self.__internal__forward(input, self.weights)
+            # output = self.__internal__scale(res, self.importances)
         return res
 
     def __rshift__(self, hidden):
         with torch.no_grad():
+            # norm = self.__internal__descale(hidden, self.importances)
             canvas = self.__internal__backward(hidden, self.weights)
         return canvas
 
@@ -122,8 +140,8 @@ if __name__ == '__main__':
     criterion = torch.nn.MSELoss(reduction='mean')
 
     # if the model is correctly implemented, the total number of steps should not exceed min(x1.shape[0], x1.shape[1])
-    x1 = torch.randn(20, 30, device=device)
-    x2 = torch.randn(20, 30, device=device)
+    x1 = torch.rand(20, 30, device=device)
+    x2 = torch.rand(20, 30, device=device)
 
     layer1.learn(x1, 1)
 

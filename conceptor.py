@@ -11,6 +11,7 @@ class Cross_Correlational_Conceptor(Layer):
         print("init")
         self.device = device
         self.weights = []
+        self.importances = []
         self.kernel_size = kernel_size
         self.stride = kernel_size
         self.file_path = file_path
@@ -18,11 +19,13 @@ class Cross_Correlational_Conceptor(Layer):
 
     def save(self):
         if self.file_path:
-            torch.save(self.weights, self.file_path)
+            torch.save({"weights": self.weights, "importances": self.importances}, self.file_path)
 
     def load(self):
         if self.file_path:
-            self.weights = torch.load(self.file_path)
+            temp = torch.load(self.file_path)
+            self.weights = temp["weights"]
+            self.importances = temp["importances"]
 
     def __internal__assign_output_padding(self, input):
         h = input.shape[2]
@@ -58,14 +61,15 @@ class Cross_Correlational_Conceptor(Layer):
 
         criterion = torch.nn.MSELoss(reduction='mean')
 
-        input = self.__internal__perspective(input)
-        input = self.__internal__assign_output_padding(input)
+        with torch.no_grad():
 
-        prev_size = len(self.weights)
-        prev_loss = 0
-        for k in range(expand_steps):
+            input = self.__internal__perspective(input)
+            input = self.__internal__assign_output_padding(input)
 
-            with torch.no_grad():
+            prev_size = len(self.weights)
+            prev_loss = 0
+            for k in range(expand_steps):
+
                 if len(self.weights) is not 0:
                     hidden = self.__internal__forward(input, self.weights)
                     input_ = self.__internal__backward(hidden, self.weights, input.shape[1])
@@ -74,19 +78,19 @@ class Cross_Correlational_Conceptor(Layer):
 
                 residue = input - input_
 
-            rloss = criterion(input_, input)
-            if rloss.item() < expand_threshold:
-                print("Stop expansion after", (len(self.weights) - prev_size) * expand_depth, "bases, small reconstruction loss.", rloss.item())
-                return True
-            if abs(rloss.item() - prev_loss) < 1e-6:
-                print("Stop expansion after", (len(self.weights) - prev_size) * expand_depth, "bases, small delta error.", rloss.item(), prev_loss)
-                # del self.weights[len(self.weights) - k:]
-                return False
+                rloss = criterion(input_, input)
+                if rloss.item() < expand_threshold:
+                    print("Stop expansion after", (len(self.weights) - prev_size) * expand_depth, "bases, small reconstruction loss.", rloss.item())
+                    return True
+                if abs(rloss.item() - prev_loss) < 1e-6:
+                    print("Stop expansion after", (len(self.weights) - prev_size) * expand_depth, "bases, small delta error.", rloss.item(), prev_loss)
+                    # del self.weights[len(self.weights) - k:]
+                    return False
 
-            # expand
-            A = torch.empty(expand_depth, input.shape[1], self.kernel_size[0], self.kernel_size[1], device=self.device, requires_grad=False)
+                # expand
+                A = torch.empty(expand_depth, input.shape[1], self.kernel_size[0], self.kernel_size[1], device=self.device, requires_grad=False)
+                M = torch.empty(expand_depth, device=self.device, requires_grad=False)
 
-            with torch.no_grad():
                 R = torch.nn.functional.unfold(residue, kernel_size=self.kernel_size, stride=self.stride)
                 Rt = torch.transpose(R, 1, 2)
                 flat = torch.reshape(Rt, [-1, input.shape[1] * self.kernel_size[0] * self.kernel_size[1]])
@@ -98,18 +102,30 @@ class Cross_Correlational_Conceptor(Layer):
                 A_ = torch.reshape(flat_, [expand_depth, input.shape[1], self.kernel_size[0], self.kernel_size[1]])
                 A.copy_(A_)
 
-            check = S[expand_depth - 1].item()
-            if check * check < expand_threshold:
-                print("Failed solution, continue...", check)
-                continue
+                check = S[expand_depth - 1].item()
+                if abs(check) < expand_threshold:
+                    print("Failed solution, continue...", check)
+                    continue
 
-            # merge
-            self.weights.append(A)
-            prev_loss = rloss.item()
+                S_ = torch.sqrt(S[:expand_depth])
+                M.copy_(S_)
+
+                # merge
+                self.weights.append(A)
+                self.importances.append(M)
+                prev_loss = rloss.item()
 
         gc.collect()
 
         return False
+
+    def __internal__scale(self, input, importances):
+        res = torch.div(input, torch.reshape(torch.cat(importances, dim=0), [1, -1, 1, 1]))
+        return res
+
+    def __internal__descale(self, input, importances):
+        res = torch.mul(input, torch.reshape(torch.cat(importances, dim=0), [1, -1, 1, 1]))
+        return res
 
     def __internal__forward(self, input, weights):
         res = torch.cat([
@@ -155,10 +171,12 @@ class Cross_Correlational_Conceptor(Layer):
             nper = self.__internal__assign_output_padding(padded)
             hidden = self.__internal__forward(nper, self.weights)
             pooled = self.__internal__pool(hidden)
+            # output = self.__internal__scale(pooled, self.importances)
         return pooled
 
     def __rshift__(self, hidden):
         with torch.no_grad():
+            # norm = self.__internal__descale(hidden, self.importances)
             canvas = self.__internal__backward(hidden, self.weights)
             output = self.__internal__revert_output_padding(canvas)
 
@@ -177,8 +195,8 @@ if __name__ == '__main__':
     layer2 = Cross_Correlational_Conceptor(device, kernel_size=(3, 3))
     criterion = torch.nn.MSELoss(reduction='mean')
 
-    x1 = torch.randn(2, 5, 28, 28, device=device)
-    x2 = torch.randn(2, 5, 28, 28, device=device)
+    x1 = torch.rand(2, 5, 28, 28, device=device)
+    x2 = torch.rand(2, 5, 28, 28, device=device)
 
     layer1.learn(x1, 3)
 

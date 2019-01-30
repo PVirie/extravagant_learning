@@ -74,7 +74,7 @@ if __name__ == "__main__":
     device = torch.device("cuda:0")
 
     batch_size = 1
-    dataset = FashionMNIST(device, batch_size=batch_size, max_per_class=20, seed=10, group_size=1)
+    dataset = FashionMNIST(device, batch_size=batch_size, max_per_class=20, seed=10, group_size=2)
 
     cluster_layers = []
 
